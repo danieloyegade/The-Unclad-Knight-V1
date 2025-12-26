@@ -1,0 +1,23 @@
+{
+  "name": "UncladKnight",
+  "tree": {
+    "$className": "DataModel",
+    "ReplicatedStorage": {
+      "Shared": {
+        "$path": "src/shared/ReplicatedStorage/Shared"
+      }
+    },
+    "ServerScriptService": {
+      "Server": {
+        "$path": "src/server/ServerScriptService/Server"
+      }
+    },
+    "StarterPlayer": {
+      "StarterPlayerScripts": {
+        "Client": {
+          "$path": "src/client/StarterPlayer/StarterPlayerScripts/Client"
+        }
+      }
+    }
+  }
+}
