@@ -9,14 +9,16 @@ local openingBriefModule = gameFolder:WaitForChild("OpeningBrief") :: ModuleScri
 local OpeningBrief = require(openingBriefModule) :: {
   DistrictLabel: string,
   Title: string,
-  Subtitle: string,
-  Vow: {
-    Label: string,
-    Text: string,
-  },
-  Omen: {
-    Label: string,
-    Text: string,
+  InitialPhase: string,
+  States: {
+    [string]: {
+      AccentColor: Color3,
+      Subtitle: string,
+      ObjectiveLabel: string,
+      ObjectiveText: string,
+      StatusLabel: string,
+      StatusText: string,
+    },
   },
 }
 
@@ -31,6 +33,18 @@ local palette = {
   PrimaryText = Color3.fromRGB(239, 235, 225),
   SecondaryText = Color3.fromRGB(181, 186, 195),
   MutedText = Color3.fromRGB(148, 154, 166),
+}
+
+local CHILD_NAMES = {
+  Accent = "Accent",
+  Stroke = "PanelStroke",
+  DistrictLabel = "DistrictLabel",
+  TitleLabel = "TitleLabel",
+  SubtitleLabel = "SubtitleLabel",
+  ObjectiveLabel = "ObjectiveLabel",
+  ObjectiveText = "ObjectiveText",
+  StatusLabel = "StatusLabel",
+  StatusText = "StatusText",
 }
 
 local function applyTextStyle(label: TextLabel, font: Enum.Font, color: Color3, size: number)
@@ -56,6 +70,70 @@ local function createTextLabel(name: string, text: string, font: Enum.Font, colo
   return label
 end
 
+local function findChild(parent: Instance, name: string): Instance
+  local child = parent:FindFirstChild(name)
+
+  if child == nil then
+    error(string.format("%s is missing child %s", parent.Name, name))
+  end
+
+  return child
+end
+
+local function getState(phase: string)
+  local state = OpeningBrief.States[phase]
+
+  if state ~= nil then
+    return state
+  end
+
+  return OpeningBrief.States[OpeningBrief.InitialPhase]
+end
+
+function OpeningOverlay.render(overlay: Frame, phase: string)
+  local state = getState(phase)
+
+  local accent = findChild(overlay, CHILD_NAMES.Accent)
+  local stroke = findChild(overlay, CHILD_NAMES.Stroke)
+  local districtLabel = findChild(overlay, CHILD_NAMES.DistrictLabel)
+  local titleLabel = findChild(overlay, CHILD_NAMES.TitleLabel)
+  local subtitleLabel = findChild(overlay, CHILD_NAMES.SubtitleLabel)
+  local objectiveLabel = findChild(overlay, CHILD_NAMES.ObjectiveLabel)
+  local objectiveText = findChild(overlay, CHILD_NAMES.ObjectiveText)
+  local statusLabel = findChild(overlay, CHILD_NAMES.StatusLabel)
+  local statusText = findChild(overlay, CHILD_NAMES.StatusText)
+
+  if not accent:IsA("Frame") then
+    error("Opening overlay accent must be a Frame")
+  end
+
+  if not stroke:IsA("UIStroke") then
+    error("Opening overlay stroke must be a UIStroke")
+  end
+
+  if not districtLabel:IsA("TextLabel")
+    or not titleLabel:IsA("TextLabel")
+    or not subtitleLabel:IsA("TextLabel")
+    or not objectiveLabel:IsA("TextLabel")
+    or not objectiveText:IsA("TextLabel")
+    or not statusLabel:IsA("TextLabel")
+    or not statusText:IsA("TextLabel")
+  then
+    error("Opening overlay text nodes were not mounted correctly")
+  end
+
+  accent.BackgroundColor3 = state.AccentColor
+  stroke.Color = state.AccentColor:Lerp(palette.Border, 0.45)
+  districtLabel.Text = OpeningBrief.DistrictLabel
+  districtLabel.TextColor3 = state.AccentColor
+  titleLabel.Text = OpeningBrief.Title
+  subtitleLabel.Text = state.Subtitle
+  objectiveLabel.Text = state.ObjectiveLabel
+  objectiveText.Text = state.ObjectiveText
+  statusLabel.Text = state.StatusLabel
+  statusText.Text = state.StatusText
+end
+
 function OpeningOverlay.mount(screenGui: ScreenGui): Frame
   local existingOverlay = screenGui:FindFirstChild(OVERLAY_NAME)
 
@@ -74,14 +152,20 @@ function OpeningOverlay.mount(screenGui: ScreenGui): Frame
   panel.BackgroundColor3 = palette.Panel
   panel.BackgroundTransparency = 0.18
   panel.BorderSizePixel = 0
-  panel.Position = UDim2.new(0, 20, 1, -20)
-  panel.Size = UDim2.fromOffset(440, 0)
+  panel.Position = UDim2.new(0, 16, 1, -16)
+  panel.Size = UDim2.new(0.6, 0, 0, 0)
+
+  local sizeConstraint = Instance.new("UISizeConstraint")
+  sizeConstraint.MinSize = Vector2.new(280, 0)
+  sizeConstraint.MaxSize = Vector2.new(440, 1000)
+  sizeConstraint.Parent = panel
 
   local corner = Instance.new("UICorner")
   corner.CornerRadius = UDim.new(0, 12)
   corner.Parent = panel
 
   local stroke = Instance.new("UIStroke")
+  stroke.Name = CHILD_NAMES.Stroke
   stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
   stroke.Color = palette.Border
   stroke.Transparency = 0.25
@@ -100,7 +184,7 @@ function OpeningOverlay.mount(screenGui: ScreenGui): Frame
   layout.Parent = panel
 
   local accent = Instance.new("Frame")
-  accent.Name = "Accent"
+  accent.Name = CHILD_NAMES.Accent
   accent.BackgroundColor3 = palette.Accent
   accent.BorderSizePixel = 0
   accent.LayoutOrder = 1
@@ -108,7 +192,7 @@ function OpeningOverlay.mount(screenGui: ScreenGui): Frame
   accent.Parent = panel
 
   local districtLabel = createTextLabel(
-    "DistrictLabel",
+    CHILD_NAMES.DistrictLabel,
     OpeningBrief.DistrictLabel,
     Enum.Font.Code,
     palette.Accent,
@@ -118,7 +202,7 @@ function OpeningOverlay.mount(screenGui: ScreenGui): Frame
   districtLabel.Parent = panel
 
   local titleLabel = createTextLabel(
-    "TitleLabel",
+    CHILD_NAMES.TitleLabel,
     OpeningBrief.Title,
     Enum.Font.GothamBold,
     palette.PrimaryText,
@@ -128,8 +212,8 @@ function OpeningOverlay.mount(screenGui: ScreenGui): Frame
   titleLabel.Parent = panel
 
   local subtitleLabel = createTextLabel(
-    "SubtitleLabel",
-    OpeningBrief.Subtitle,
+    CHILD_NAMES.SubtitleLabel,
+    "",
     Enum.Font.Gotham,
     palette.SecondaryText,
     16
@@ -137,47 +221,49 @@ function OpeningOverlay.mount(screenGui: ScreenGui): Frame
   subtitleLabel.LayoutOrder = 4
   subtitleLabel.Parent = panel
 
-  local vowLabel = createTextLabel(
-    "VowLabel",
-    OpeningBrief.Vow.Label,
+  local objectiveLabel = createTextLabel(
+    CHILD_NAMES.ObjectiveLabel,
+    "",
     Enum.Font.Code,
     palette.MutedText,
     13
   )
-  vowLabel.LayoutOrder = 5
-  vowLabel.Parent = panel
+  objectiveLabel.LayoutOrder = 5
+  objectiveLabel.Parent = panel
 
-  local vowText = createTextLabel(
-    "VowText",
-    OpeningBrief.Vow.Text,
+  local objectiveText = createTextLabel(
+    CHILD_NAMES.ObjectiveText,
+    "",
     Enum.Font.GothamMedium,
     palette.PrimaryText,
     16
   )
-  vowText.LayoutOrder = 6
-  vowText.Parent = panel
+  objectiveText.LayoutOrder = 6
+  objectiveText.Parent = panel
 
-  local omenLabel = createTextLabel(
-    "OmenLabel",
-    OpeningBrief.Omen.Label,
+  local statusLabel = createTextLabel(
+    CHILD_NAMES.StatusLabel,
+    "",
     Enum.Font.Code,
     palette.MutedText,
     13
   )
-  omenLabel.LayoutOrder = 7
-  omenLabel.Parent = panel
+  statusLabel.LayoutOrder = 7
+  statusLabel.Parent = panel
 
-  local omenText = createTextLabel(
-    "OmenText",
-    OpeningBrief.Omen.Text,
+  local statusText = createTextLabel(
+    CHILD_NAMES.StatusText,
+    "",
     Enum.Font.Gotham,
     palette.SecondaryText,
     15
   )
-  omenText.LayoutOrder = 8
-  omenText.Parent = panel
+  statusText.LayoutOrder = 8
+  statusText.Parent = panel
 
   panel.Parent = screenGui
+
+  OpeningOverlay.render(panel, OpeningBrief.InitialPhase)
 
   return panel
 end

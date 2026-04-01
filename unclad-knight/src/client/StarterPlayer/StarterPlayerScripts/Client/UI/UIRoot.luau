@@ -39,4 +39,9 @@ function UIRoot.mount(player: Player): ScreenGui
   return screenGui
 end
 
+function UIRoot.renderPhase(screenGui: ScreenGui, phase: string)
+  local overlay = OpeningOverlay.mount(screenGui)
+  OpeningOverlay.render(overlay, phase)
+end
+
 return UIRoot

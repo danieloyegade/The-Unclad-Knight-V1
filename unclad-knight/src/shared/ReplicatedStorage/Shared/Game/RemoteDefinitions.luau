@@ -10,10 +10,27 @@ export type RemoteFunctionDefinition = {
   kind: "RemoteFunction",
 }
 
-local events: { RemoteEventDefinition } = {}
-local functions: { RemoteFunctionDefinition } = {}
+local names = table.freeze({
+  SlicePhaseChanged = "SlicePhaseChanged",
+  GetSlicePhase = "GetSlicePhase",
+})
+
+local events: { RemoteEventDefinition } = {
+  {
+    name = names.SlicePhaseChanged,
+    kind = "RemoteEvent",
+  },
+}
+
+local functions: { RemoteFunctionDefinition } = {
+  {
+    name = names.GetSlicePhase,
+    kind = "RemoteFunction",
+  },
+}
 
 local RemoteDefinitions = table.freeze({
+  Names = names,
   Events = table.freeze(events),
   Functions = table.freeze(functions),
 })
