@@ -2,7 +2,13 @@
   "name": "UncladKnight",
   "tree": {
     "$className": "DataModel",
+    "Lighting": {
+      "$path": "src/lighting/Lighting"
+    },
     "ReplicatedStorage": {
+      "Remotes": {
+        "$path": "src/shared/ReplicatedStorage/Remotes"
+      },
       "Shared": {
         "$path": "src/shared/ReplicatedStorage/Shared"
       }
@@ -11,6 +17,12 @@
       "Server": {
         "$path": "src/server/ServerScriptService/Server"
       }
+    },
+    "SoundService": {
+      "$path": "src/sound/SoundService"
+    },
+    "StarterGui": {
+      "$path": "src/ui/StarterGui"
     },
     "StarterPlayer": {
       "StarterPlayerScripts": {

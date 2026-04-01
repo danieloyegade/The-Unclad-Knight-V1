@@ -1,8 +1,17 @@
--- Main.client.luau
--- Starter client entry for unclad-knight
+--!strict
 
-local Client = {}
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-print("[unclad-knight] Main.client initialized")
+local sharedFolder = ReplicatedStorage:WaitForChild("Shared") :: Folder
+local utilFolder = sharedFolder:WaitForChild("Util") :: Folder
+local loggerModule = utilFolder:WaitForChild("Logger") :: ModuleScript
 
-return Client
+local controllersFolder = script.Parent:WaitForChild("Controllers") :: Folder
+local controllerRegistryModule = controllersFolder:WaitForChild("ControllerRegistry") :: ModuleScript
+
+local Logger = require(loggerModule)
+local ControllerRegistry = require(controllerRegistryModule)
+
+Logger.info("client", "Booting client composition root")
+ControllerRegistry.start()
+Logger.info("client", "Client ready")
