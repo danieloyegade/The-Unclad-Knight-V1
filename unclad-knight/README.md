@@ -13,6 +13,7 @@ The tone should sit between documentary realism and theatrical stage logic. Labo
 
 - [Creative direction](docs/creative-direction.md)
 - [MVP vertical slice](docs/mvp-vertical-slice.md)
+- [First district Studio setup](docs/first-district-studio-setup.md)
 
 ## Current baseline
 

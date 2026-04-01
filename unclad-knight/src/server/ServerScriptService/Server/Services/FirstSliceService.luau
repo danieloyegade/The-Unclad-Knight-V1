@@ -16,7 +16,23 @@ local openingBriefModule = gameFolder:WaitForChild("OpeningBrief") :: ModuleScri
 local remoteDefinitionsModule = gameFolder:WaitForChild("RemoteDefinitions") :: ModuleScript
 local loggerModule = utilFolder:WaitForChild("Logger") :: ModuleScript
 
-local GameConfig = require(gameConfigModule)
+local GameConfig = require(gameConfigModule) :: {
+  Network: {
+    RemotesFolderName: string,
+  },
+  FirstDistrict: {
+    RootName: string,
+    SpawnMarkerName: string,
+    InteractionMarkerName: string,
+    InteractionPromptName: string,
+    InteractionActionText: string,
+    InteractionObjectText: string,
+    EndpointMarkerName: string,
+    EndpointPromptName: string,
+    EndpointActionText: string,
+    EndpointObjectText: string,
+  },
+}
 local OpeningBrief = require(openingBriefModule) :: {
   InitialPhase: string,
 }
@@ -33,27 +49,10 @@ local FirstSliceService = {
 }
 
 type SliceWorld = {
-  SpawnCFrame: CFrame,
-  PickupPrompt: ProximityPrompt,
-  DropoffPrompt: ProximityPrompt,
-}
-
-local WORLD_MODEL_NAME = "FirstSliceDistrict"
-
-local palette = {
-  Void = Color3.fromRGB(10, 12, 15),
-  Road = Color3.fromRGB(28, 30, 36),
-  Pavement = Color3.fromRGB(56, 58, 64),
-  Concrete = Color3.fromRGB(89, 94, 102),
-  Estate = Color3.fromRGB(71, 77, 86),
-  Takeaway = Color3.fromRGB(112, 63, 48),
-  Civic = Color3.fromRGB(67, 72, 79),
-  WindowWarm = Color3.fromRGB(255, 204, 134),
-  LampWarm = Color3.fromRGB(255, 196, 129),
-  Neon = Color3.fromRGB(242, 184, 93),
-  Rail = Color3.fromRGB(124, 132, 145),
-  Watcher = Color3.fromRGB(147, 153, 165),
-  Fence = Color3.fromRGB(84, 88, 96),
+  Root: Instance,
+  SpawnMarker: BasePart,
+  InteractionPrompt: ProximityPrompt,
+  EndpointPrompt: ProximityPrompt,
 }
 
 local started = false
@@ -63,128 +62,9 @@ local playerPhases: { [Player]: string } = {}
 local slicePhaseChangedRemote: RemoteEvent? = nil
 local getSlicePhaseFunction: RemoteFunction? = nil
 
-local function createPart(
-  parent: Instance,
-  name: string,
-  size: Vector3,
-  cframe: CFrame,
-  color: Color3,
-  material: Enum.Material
-): Part
-  local part = Instance.new("Part")
-  part.Name = name
-  part.Anchored = true
-  part.CanCollide = true
-  part.Material = material
-  part.Color = color
-  part.Size = size
-  part.CFrame = cframe
-  part.TopSurface = Enum.SurfaceType.Smooth
-  part.BottomSurface = Enum.SurfaceType.Smooth
-  part.Parent = parent
-
-  return part
-end
-
-local function createTextSign(parent: BasePart, name: string, face: Enum.NormalId, text: string)
-  local surfaceGui = Instance.new("SurfaceGui")
-  surfaceGui.Name = name
-  surfaceGui.Face = face
-  surfaceGui.LightInfluence = 0
-  surfaceGui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
-  surfaceGui.PixelsPerStud = 40
-  surfaceGui.Parent = parent
-
-  local textLabel = Instance.new("TextLabel")
-  textLabel.BackgroundTransparency = 1
-  textLabel.Font = Enum.Font.Code
-  textLabel.Size = UDim2.fromScale(1, 1)
-  textLabel.Text = text
-  textLabel.TextColor3 = palette.WindowWarm
-  textLabel.TextScaled = true
-  textLabel.Parent = surfaceGui
-end
-
-local function createPointLight(parent: Instance, color: Color3, brightness: number, range: number)
-  local light = Instance.new("PointLight")
-  light.Color = color
-  light.Brightness = brightness
-  light.Range = range
-  light.Shadows = true
-  light.Parent = parent
-
-  return light
-end
-
-local function createStreetLight(parent: Instance, basePosition: Vector3)
-  local pole = createPart(
-    parent,
-    "StreetLightPole",
-    Vector3.new(0.8, 11, 0.8),
-    CFrame.new(basePosition + Vector3.new(0, 5.5, 0)),
-    Color3.fromRGB(88, 92, 102),
-    Enum.Material.Metal
-  )
-
-  local arm = createPart(
-    parent,
-    "StreetLightArm",
-    Vector3.new(3.2, 0.25, 0.25),
-    CFrame.new(basePosition + Vector3.new(1.4, 10.2, 0)),
-    Color3.fromRGB(96, 100, 110),
-    Enum.Material.Metal
-  )
-  arm.CanCollide = false
-
-  local lamp = createPart(
-    parent,
-    "StreetLightLamp",
-    Vector3.new(0.8, 0.4, 1.2),
-    CFrame.new(basePosition + Vector3.new(2.7, 9.8, 0)),
-    palette.LampWarm,
-    Enum.Material.Neon
-  )
-  lamp.CanCollide = false
-
-  createPointLight(lamp, palette.LampWarm, 2.3, 26)
-
-  return pole
-end
-
-local function createWatcher(parent: Instance, basePosition: Vector3, facing: number)
-  local pole = createPart(
-    parent,
-    "WatcherPole",
-    Vector3.new(0.7, 8, 0.7),
-    CFrame.new(basePosition + Vector3.new(0, 4, 0)),
-    palette.Watcher,
-    Enum.Material.Metal
-  )
-
-  local camera = createPart(
-    parent,
-    "WatcherCamera",
-    Vector3.new(1.2, 0.7, 0.7),
-    CFrame.new(basePosition + Vector3.new(0.55, 7.4, 0)) * CFrame.Angles(0, math.rad(facing), 0),
-    palette.Watcher,
-    Enum.Material.Metal
-  )
-  camera.CanCollide = false
-
-  local glare = Instance.new("SpotLight")
-  glare.Angle = 42
-  glare.Brightness = 1.4
-  glare.Color = Color3.fromRGB(191, 208, 255)
-  glare.Face = Enum.NormalId.Right
-  glare.Range = 30
-  glare.Shadows = true
-  glare.Parent = camera
-
-  return pole
-end
-
-local function createPrompt(parent: Instance, actionText: string, objectText: string): ProximityPrompt
+local function createPrompt(parent: BasePart, name: string, actionText: string, objectText: string): ProximityPrompt
   local prompt = Instance.new("ProximityPrompt")
+  prompt.Name = name
   prompt.ActionText = actionText
   prompt.ObjectText = objectText
   prompt.HoldDuration = 0.15
@@ -330,322 +210,91 @@ local function configureAtmosphere()
   ensureSoundGroup("InstitutionTone", 0.85)
 end
 
-local function buildWorld(): SliceWorld
-  local existing = Workspace:FindFirstChild(WORLD_MODEL_NAME)
+local function findRequiredBasePart(parent: Instance, name: string): BasePart
+  local candidate = parent:FindFirstChild(name, true)
 
-  if existing ~= nil then
-    if existing:IsA("Model") then
-      local pickupPrompt = existing:FindFirstChild("PickupPrompt", true)
-      local dropoffPrompt = existing:FindFirstChild("DropoffPrompt", true)
-      local spawnMarker = existing:FindFirstChild("SliceSpawn")
-
-      if pickupPrompt ~= nil and dropoffPrompt ~= nil and spawnMarker ~= nil and pickupPrompt:IsA("ProximityPrompt")
-        and dropoffPrompt:IsA("ProximityPrompt") and spawnMarker:IsA("BasePart")
-      then
-        return {
-          SpawnCFrame = spawnMarker.CFrame + Vector3.new(0, 3, 0),
-          PickupPrompt = pickupPrompt,
-          DropoffPrompt = dropoffPrompt,
-        }
-      end
-    else
-      error(string.format("Workspace.%s must be a Model", WORLD_MODEL_NAME))
-    end
+  if candidate == nil then
+    error(string.format("%s is missing required marker %s", parent:GetFullName(), name))
   end
 
-  local district = Instance.new("Model")
-  district.Name = WORLD_MODEL_NAME
-  district.Parent = Workspace
+  if not candidate:IsA("BasePart") then
+    error(string.format("%s must be a BasePart, received %s", candidate:GetFullName(), candidate.ClassName))
+  end
 
-  local ground = createPart(
-    district,
-    "GroundPlane",
-    Vector3.new(260, 1, 180),
-    CFrame.new(42, -0.5, 5),
-    palette.Void,
-    Enum.Material.Asphalt
-  )
-  ground.Reflectance = 0.05
+  return candidate
+end
 
-  local mainRoad = createPart(
-    district,
-    "MainRoad",
-    Vector3.new(180, 1.2, 28),
-    CFrame.new(36, 0, 0),
-    palette.Road,
-    Enum.Material.Asphalt
-  )
-  mainRoad.Reflectance = 0.09
+local function ensurePrompt(parent: BasePart, name: string, actionText: string, objectText: string): ProximityPrompt
+  local existingPrompt = parent:FindFirstChild(name)
 
-  local northPavement = createPart(
-    district,
-    "NorthPavement",
-    Vector3.new(180, 1.05, 10),
-    CFrame.new(36, 0.05, 19),
-    palette.Pavement,
-    Enum.Material.Concrete
-  )
-  northPavement.Reflectance = 0.03
+  if existingPrompt ~= nil then
+    if not existingPrompt:IsA("ProximityPrompt") then
+      error(string.format("%s must be a ProximityPrompt, received %s", existingPrompt:GetFullName(), existingPrompt.ClassName))
+    end
 
-  local southPavement = createPart(
-    district,
-    "SouthPavement",
-    Vector3.new(180, 1.05, 10),
-    CFrame.new(36, 0.05, -19),
-    palette.Pavement,
-    Enum.Material.Concrete
-  )
-  southPavement.Reflectance = 0.03
+    existingPrompt.ActionText = actionText
+    existingPrompt.ObjectText = objectText
+    existingPrompt.HoldDuration = 0.15
+    existingPrompt.KeyboardKeyCode = Enum.KeyCode.E
+    existingPrompt.MaxActivationDistance = 10
+    existingPrompt.RequiresLineOfSight = false
 
-  local serviceLane = createPart(
-    district,
-    "ServiceLane",
-    Vector3.new(80, 1.05, 16),
-    CFrame.new(94, 0.05, 30),
-    Color3.fromRGB(32, 35, 41),
-    Enum.Material.Asphalt
-  )
-  serviceLane.Reflectance = 0.08
+    return existingPrompt
+  end
 
-  local estateA = createPart(
-    district,
-    "EstateBlockA",
-    Vector3.new(42, 28, 26),
-    CFrame.new(-46, 14, 48),
-    palette.Estate,
-    Enum.Material.Concrete
-  )
-  local estateB = createPart(
-    district,
-    "EstateBlockB",
-    Vector3.new(32, 22, 18),
-    CFrame.new(-2, 11, 44),
-    palette.Estate,
-    Enum.Material.Concrete
-  )
+  return createPrompt(parent, name, actionText, objectText)
+end
 
-  local yardWall = createPart(
-    district,
-    "EstateWall",
-    Vector3.new(46, 7, 1.2),
-    CFrame.new(-26, 3.5, 32),
-    palette.Concrete,
-    Enum.Material.Concrete
-  )
+local function bindDistrictBlockout(): SliceWorld?
+  local districtRoot = Workspace:FindFirstChild(GameConfig.FirstDistrict.RootName)
 
-  local spawnMarker = createPart(
-    district,
-    "SliceSpawn",
-    Vector3.new(8, 1, 8),
-    CFrame.new(-66, 0.55, 18),
-    palette.Pavement,
-    Enum.Material.Concrete
-  )
-  spawnMarker.Transparency = 0.15
+  if districtRoot == nil then
+    Logger.warn(
+      "server/slice",
+      string.format(
+        "Workspace.%s is missing. Create it in Studio with %s, %s, and %s markers to enable the first district blockout",
+        GameConfig.FirstDistrict.RootName,
+        GameConfig.FirstDistrict.SpawnMarkerName,
+        GameConfig.FirstDistrict.InteractionMarkerName,
+        GameConfig.FirstDistrict.EndpointMarkerName
+      )
+    )
 
-  local busStopBack = createPart(
-    district,
-    "BusStopBack",
-    Vector3.new(10, 4, 0.5),
-    CFrame.new(-8, 2.4, 23.5),
-    Color3.fromRGB(88, 94, 107),
-    Enum.Material.Metal
-  )
-  local busStopRoof = createPart(
-    district,
-    "BusStopRoof",
-    Vector3.new(10, 0.4, 4),
-    CFrame.new(-8, 4.6, 21.7),
-    Color3.fromRGB(77, 83, 95),
-    Enum.Material.Metal
-  )
-  busStopRoof.CanCollide = false
-  createTextSign(busStopBack, "BusStopSign", Enum.NormalId.Front, "BUS STOP")
+    return nil
+  end
 
-  local takeaway = createPart(
-    district,
-    "TakeawayBuilding",
-    Vector3.new(34, 16, 20),
-    CFrame.new(40, 8, -28),
-    palette.Takeaway,
-    Enum.Material.Brick
-  )
-  local takeawayCounter = createPart(
-    district,
-    "TakeawayCounter",
-    Vector3.new(12, 1.4, 2.6),
-    CFrame.new(40, 2.2, -16.7),
-    Color3.fromRGB(72, 47, 38),
-    Enum.Material.WoodPlanks
-  )
-  local takeawaySign = createPart(
-    district,
-    "TakeawaySign",
-    Vector3.new(16, 2, 0.4),
-    CFrame.new(40, 9.8, -17.7),
-    palette.Neon,
-    Enum.Material.Neon
-  )
-  takeawaySign.CanCollide = false
-  createTextSign(takeawaySign, "TakeawayText", Enum.NormalId.Front, "NIGHT TAKEAWAY")
+  if not districtRoot:IsA("Model") and not districtRoot:IsA("Folder") then
+    error(
+      string.format(
+        "Workspace.%s must be a Model or Folder, received %s",
+        GameConfig.FirstDistrict.RootName,
+        districtRoot.ClassName
+      )
+    )
+  end
 
-  local takeawayGlow = createPart(
-    district,
-    "TakeawayGlow",
-    Vector3.new(12, 3, 0.3),
-    CFrame.new(40, 5.7, -17.4),
-    palette.WindowWarm,
-    Enum.Material.Neon
-  )
-  takeawayGlow.CanCollide = false
-  createPointLight(takeawayGlow, palette.WindowWarm, 1.9, 18)
+  local spawnMarker = findRequiredBasePart(districtRoot, GameConfig.FirstDistrict.SpawnMarkerName)
+  local interactionMarker = findRequiredBasePart(districtRoot, GameConfig.FirstDistrict.InteractionMarkerName)
+  local endpointMarker = findRequiredBasePart(districtRoot, GameConfig.FirstDistrict.EndpointMarkerName)
 
-  local alleyWallNorth = createPart(
-    district,
-    "AlleyWallNorth",
-    Vector3.new(46, 12, 1.6),
-    CFrame.new(68, 6, 13.5),
-    palette.Concrete,
-    Enum.Material.Concrete
+  local interactionPrompt = ensurePrompt(
+    interactionMarker,
+    GameConfig.FirstDistrict.InteractionPromptName,
+    GameConfig.FirstDistrict.InteractionActionText,
+    GameConfig.FirstDistrict.InteractionObjectText
   )
-  local alleyWallSouth = createPart(
-    district,
-    "AlleyWallSouth",
-    Vector3.new(46, 12, 1.6),
-    CFrame.new(68, 6, 4.5),
-    palette.Concrete,
-    Enum.Material.Concrete
+  local endpointPrompt = ensurePrompt(
+    endpointMarker,
+    GameConfig.FirstDistrict.EndpointPromptName,
+    GameConfig.FirstDistrict.EndpointActionText,
+    GameConfig.FirstDistrict.EndpointObjectText
   )
-  local alleyLink = createPart(
-    district,
-    "AlleyLink",
-    Vector3.new(12, 1.1, 9),
-    CFrame.new(56, 0.08, 9),
-    Color3.fromRGB(37, 40, 46),
-    Enum.Material.Asphalt
-  )
-  alleyLink.Reflectance = 0.08
-
-  local tramRailA = createPart(
-    district,
-    "TramRailA",
-    Vector3.new(2, 0.3, 56),
-    CFrame.new(88, 0.8, 8),
-    palette.Rail,
-    Enum.Material.Metal
-  )
-  local tramRailB = createPart(
-    district,
-    "TramRailB",
-    Vector3.new(2, 0.3, 56),
-    CFrame.new(92, 0.8, 8),
-    palette.Rail,
-    Enum.Material.Metal
-  )
-
-  local civicBuilding = createPart(
-    district,
-    "ArtsCouncilBuilding",
-    Vector3.new(44, 24, 28),
-    CFrame.new(146, 12, 28),
-    palette.Civic,
-    Enum.Material.Concrete
-  )
-  createTextSign(civicBuilding, "CouncilSign", Enum.NormalId.Left, "ARTS COUNCIL")
-
-  local civicSteps = createPart(
-    district,
-    "CouncilSteps",
-    Vector3.new(20, 1.4, 12),
-    CFrame.new(123, 1, 28),
-    palette.Concrete,
-    Enum.Material.Concrete
-  )
-  local civicLanding = createPart(
-    district,
-    "CouncilLanding",
-    Vector3.new(10, 1.4, 12),
-    CFrame.new(132, 2.1, 28),
-    palette.Concrete,
-    Enum.Material.Concrete
-  )
-  local civicDoor = createPart(
-    district,
-    "CouncilDoor",
-    Vector3.new(0.6, 10, 8),
-    CFrame.new(124.2, 6.5, 28),
-    Color3.fromRGB(38, 42, 48),
-    Enum.Material.Metal
-  )
-  local intercom = createPart(
-    district,
-    "CouncilIntercom",
-    Vector3.new(0.6, 2.4, 2.2),
-    CFrame.new(123.7, 4, 20),
-    Color3.fromRGB(125, 130, 138),
-    Enum.Material.Metal
-  )
-  local civicLight = createPart(
-    district,
-    "CouncilLight",
-    Vector3.new(0.5, 0.5, 6),
-    CFrame.new(123.6, 9.5, 28),
-    palette.WindowWarm,
-    Enum.Material.Neon
-  )
-  civicLight.CanCollide = false
-  createPointLight(civicLight, palette.WindowWarm, 2, 20)
-
-  local deadZoneLot = createPart(
-    district,
-    "DeadZoneLot",
-    Vector3.new(44, 1.05, 28),
-    CFrame.new(104, 0.06, -36),
-    Color3.fromRGB(24, 26, 29),
-    Enum.Material.Concrete
-  )
-  deadZoneLot.Reflectance = 0.02
-  local deadZoneFenceA = createPart(
-    district,
-    "DeadZoneFenceA",
-    Vector3.new(44, 3, 0.4),
-    CFrame.new(104, 1.5, -22),
-    palette.Fence,
-    Enum.Material.Metal
-  )
-  local deadZoneFenceB = createPart(
-    district,
-    "DeadZoneFenceB",
-    Vector3.new(44, 3, 0.4),
-    CFrame.new(104, 1.5, -50),
-    palette.Fence,
-    Enum.Material.Metal
-  )
-
-  local pickupPrompt = createPrompt(takeawayCounter, "Claim Order", "Takeaway Window")
-  pickupPrompt.Name = "PickupPrompt"
-
-  local dropoffPrompt = createPrompt(intercom, "Present Order", "Arts Council Door")
-  dropoffPrompt.Name = "DropoffPrompt"
-
-  createStreetLight(district, Vector3.new(-58, 0, 24))
-  createStreetLight(district, Vector3.new(-10, 0, 24))
-  createStreetLight(district, Vector3.new(32, 0, 18))
-  createStreetLight(district, Vector3.new(72, 0, 14))
-  createStreetLight(district, Vector3.new(110, 0, 32))
-  createStreetLight(district, Vector3.new(130, 0, 18))
-
-  createWatcher(district, Vector3.new(16, 0, 30), 180)
-  createWatcher(district, Vector3.new(98, 0, 38), 180)
-
-  estateA:SetAttribute("Landmark", "Estate")
-  takeaway:SetAttribute("Landmark", "Takeaway")
-  civicBuilding:SetAttribute("Landmark", "ArtsCouncil")
 
   return {
-    SpawnCFrame = CFrame.new(-66, 4.5, 18) * CFrame.Angles(0, math.rad(90), 0),
-    PickupPrompt = pickupPrompt,
-    DropoffPrompt = dropoffPrompt,
+    Root = districtRoot,
+    SpawnMarker = spawnMarker,
+    InteractionPrompt = interactionPrompt,
+    EndpointPrompt = endpointPrompt,
   }
 end
 
@@ -718,7 +367,7 @@ local function positionCharacter(character: Model)
     return
   end
 
-  character:PivotTo(world.SpawnCFrame)
+  character:PivotTo(world.SpawnMarker.CFrame + Vector3.new(0, 3, 0))
 end
 
 local function bindPlayer(player: Player)
@@ -775,22 +424,25 @@ function FirstSliceService.start()
   started = true
 
   configureAtmosphere()
-  sliceWorld = buildWorld()
 
   slicePhaseChangedRemote = getOrCreateRemoteEvent(RemoteDefinitions.Names.SlicePhaseChanged)
   getSlicePhaseFunction = getOrCreateRemoteFunction(RemoteDefinitions.Names.GetSlicePhase)
   getSlicePhaseFunction.OnServerInvoke = function(player: Player)
     return getPhase(player)
   end
+  sliceWorld = bindDistrictBlockout()
 
   local world = sliceWorld
 
-  if world == nil then
-    error("First slice world failed to build")
-  end
+  if world ~= nil then
+    world.InteractionPrompt.Triggered:Connect(onPickupTriggered)
+    world.EndpointPrompt.Triggered:Connect(onDropoffTriggered)
 
-  world.PickupPrompt.Triggered:Connect(onPickupTriggered)
-  world.DropoffPrompt.Triggered:Connect(onDropoffTriggered)
+    Logger.info(
+      "server/slice",
+      string.format("First district blockout bound at %s", world.Root:GetFullName())
+    )
+  end
 
   for _, player in Players:GetPlayers() do
     bindPlayer(player)
@@ -801,7 +453,7 @@ function FirstSliceService.start()
     playerPhases[player] = nil
   end)
 
-  Logger.info("server/slice", "First playable slice ready: estate to takeaway to Arts Council denial")
+  Logger.info("server/slice", "First playable slice ready for a Studio-authored district blockout")
 end
 
 return FirstSliceService
