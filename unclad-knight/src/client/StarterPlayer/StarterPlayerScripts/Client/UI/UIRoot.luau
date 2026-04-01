@@ -1,5 +1,8 @@
 --!strict
 
+local openingOverlayModule = script.Parent:WaitForChild("OpeningOverlay") :: ModuleScript
+local OpeningOverlay = require(openingOverlayModule)
+
 local UIRoot = {}
 
 local ROOT_NAME = "UncladKnightUI"
@@ -18,6 +21,8 @@ function UIRoot.mount(player: Player): ScreenGui
       error(string.format("%s already exists but is a %s", ROOT_NAME, existingRoot.ClassName))
     end
 
+    OpeningOverlay.mount(existingRoot)
+
     return existingRoot
   end
 
@@ -28,6 +33,8 @@ function UIRoot.mount(player: Player): ScreenGui
   screenGui.ResetOnSpawn = false
   screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
   screenGui.Parent = playerGuiInstance
+
+  OpeningOverlay.mount(screenGui)
 
   return screenGui
 end
